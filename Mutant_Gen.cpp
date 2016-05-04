@@ -88,41 +88,95 @@ static std::string getNextFile(StringRef currFileName){
       std::ifstream  src(pathList[0], std::ios::binary);
       std::ofstream  dst(newFile,   std::ios::binary);
 
-    dst << src.rdbuf();
+      dst << src.rdbuf();
 
       return newFile;
   }
 
+static std::vector<clang::BinaryOperator::Opcode> viableBinMutantOpcodes(clang::BinaryOperator::Opcode Operator){
 
-class IfStmtHandler : public MatchFinder::MatchCallback {
-public:
-  IfStmtHandler(Replacements *Replace) : Replace(Replace) {}
-
-  virtual void run(const MatchFinder::MatchResult &Result) {
-    // The matched 'if' statement was bound to 'ifStmt'.
-    if (const IfStmt *IfS = Result.Nodes.getNodeAs<clang::IfStmt>("ifStmt")) {
-      const Stmt *Then = IfS->getThen();
-
-      
-      std::string temp;
-		temp = getText(*(Result.SourceManager),*IfS);
-        llvm::outs()<<"\nBody\n"<<temp<<"\n";
-
-      Replacement Rep(*(Result.SourceManager), Then->getLocStart(), 0,
-                      "// the 'if' part\n");
-      Replace->insert(Rep);
-
-      if (const Stmt *Else = IfS->getElse()) {
-        Replacement Rep(*(Result.SourceManager), Else->getLocStart(), 0,
-                        "// the 'else' part\n");
-        Replace->insert(Rep);
-      }
+    std::vector<clang::BinaryOperator::Opcode> OpCode;
+    StringRef Operat_str = clang::BinaryOperator::getOpcodeStr(Operator);
+    if(clang::BinaryOperator::isComparisonOp(Operator)){
+        if(Operat_str.equals(clang::BinaryOperator::getOpcodeStr(clang::BO_LT)) != true)
+            OpCode.push_back(clang::BO_LT);
+        if(Operat_str.equals(clang::BinaryOperator::getOpcodeStr(clang::BO_GT)) != true)
+            OpCode.push_back(clang::BO_GT);
+        if(Operat_str.equals(clang::BinaryOperator::getOpcodeStr(clang::BO_LE)) != true)
+            OpCode.push_back(clang::BO_LE);
+        if(Operat_str.equals(clang::BinaryOperator::getOpcodeStr(clang::BO_GE)) != true)
+            OpCode.push_back(clang::BO_GE);
+        if(Operat_str.equals(clang::BinaryOperator::getOpcodeStr(clang::BO_EQ)) != true)
+            OpCode.push_back(clang::BO_EQ);
+        if(Operat_str.equals(clang::BinaryOperator::getOpcodeStr(clang::BO_NE)) != true)
+            OpCode.push_back(clang::BO_NE);
     }
+
+
+    else if((clang::BinaryOperator::isMultiplicativeOp(Operator)) || (clang::BinaryOperator::isAdditiveOp(Operator))){
+        if(Operat_str.equals(clang::BinaryOperator::getOpcodeStr(clang::BO_Mul)) != true)
+            OpCode.push_back(clang::BO_Mul);
+        if(Operat_str.equals(clang::BinaryOperator::getOpcodeStr(clang::BO_Div)) != true)
+            OpCode.push_back(clang::BO_Div);
+        if(Operat_str.equals(clang::BinaryOperator::getOpcodeStr(clang::BO_Rem)) != true)
+            OpCode.push_back(clang::BO_Rem);
+        if(Operat_str.equals(clang::BinaryOperator::getOpcodeStr(clang::BO_Sub)) != true)
+            OpCode.push_back(clang::BO_Sub);
+        if(Operat_str.equals(clang::BinaryOperator::getOpcodeStr(clang::BO_Add)) != true)
+            OpCode.push_back(clang::BO_Add);
+       
+    }
+
+     else if(clang::BinaryOperator::isShiftAssignOp (Operator)){
+        if(Operat_str.equals(clang::BinaryOperator::getOpcodeStr(clang::BO_Shl)) != true)
+            OpCode.push_back(clang::BO_Mul);
+        if(Operat_str.equals(clang::BinaryOperator::getOpcodeStr(clang::BO_Shr)) != true)
+            OpCode.push_back(clang::BO_Div);
+      
+    }
+
+    return OpCode;
+/*
+
+      BO_PtrMemD 	
+      BO_PtrMemI 	
+BO_Mul 	
+BO_Div 	
+BO_Rem 	
+BO_Add 	
+BO_Sub 	
+BO_Shl 	
+BO_Shr 	
+BO_LT 	
+BO_GT 	
+BO_LE 	
+BO_GE 	
+BO_EQ 	
+BO_NE 	
+BO_And 	
+BO_Xor 	
+BO_Or 	
+BO_LAnd 	
+BO_LOr 	
+BO_Assign 	
+BO_MulAssign 	
+BO_DivAssign 	
+BO_RemAssign 	
+BO_AddAssign 	
+BO_SubAssign 	
+BO_ShlAssign 	
+BO_ShrAssign 	
+BO_AndAssign 	
+BO_XorAssign 	
+BO_OrAssign 	
+BO_Comma 
+
+      return newFile;*/
   }
 
-private:
-  Replacements *Replace;
-};
+
+
+
 
 
 class BinaryOperatorHandler : public MatchFinder::MatchCallback {
@@ -135,17 +189,7 @@ public:
           // llvm::outs()<<"\nisInSystemHeader = \n"<<Result.SourceManager->isInSystemHeader(binOp->getExprLoc())<<"\n";
           if((Result.SourceManager->isInMainFile(binOp->getExprLoc())==true) &&
                   (Result.SourceManager->isInSystemHeader(binOp->getExprLoc())==0)){
-              //  const Stmt *Then = IfS->getThen();
-              //  no_of_operations++;
-              
-              //StringRef FileName =Result.SourceManager->getFilename(binOp->getExprLoc());
-              //newFile = pathList[0];
-
-              //size_t pos = newFile.find(FileName.str());
-              //llvm::outs()<<"newFile =: "<<newFile<<"\n";
-              //llvm::outs()<<"FileName =: "<<FileName.str()<<"\n";
-              //llvm::outs()<<"Position =: "<<pos<<"\n";
-              //newFile.replace(pos, FileName.size (), "1.cpp");
+             
                 
 
               std::string temp;
@@ -154,55 +198,78 @@ public:
               StringRef 	operand = binOp->getOpcodeStr(binOp->getOpcode () );
               // llvm::outs()<<"Opcode: "<<operand.str()<<"\n";
               clang::BinaryOperator::Opcode binOpCode = binOp->getOpcode ();
+
+              std::vector<clang::BinaryOperator::Opcode> mutant_Ops = viableBinMutantOpcodes(binOpCode);
+              Expr * lhs =binOp->getLHS () ;
+              Expr * rhs =binOp->getRHS () ;
+              std::string new_replacement;
+              for(std::vector<clang::BinaryOperator::Opcode>::iterator op_it = mutant_Ops.begin();op_it != mutant_Ops.end(); ++op_it){
+                    new_replacement = getText(*(Result.SourceManager),*lhs)+" "+clang::BinaryOperator::getOpcodeStr(*op_it).str()
+                        +" " +new_replacement + new_replacement +getText(*(Result.SourceManager),*rhs);
+                    StringRef currFileName =Result.SourceManager->getFilename(binOp->getExprLoc());
+                    std::string newFile =getNextFile(currFileName);
+                    Replacement Rep(*(Result.SourceManager), binOp, new_replacement);
+                    Replacement Rep1(newFile, Rep.getOffset (), Rep.getLength(),new_replacement);
+                    Replace->insert(Rep1);
+              }
+
               
+              /*      Expr * lhs =binOp->getLHS () ;
+                    Expr * rhs =binOp->getRHS () ;
+                    std::string new_replacement;
+
+                    for(std::vector<clang::BinaryOperator::Opcode>::iterator op_it = mutant_Ops.begin();op_it != mutant_Ops.end(); ++op_it);{
+                        new_replacement = getText(*(Result.SourceManager),*lhs)+clang::BinaryOperator::getOpcodeStr(op_it)+getText(*(Result.SourceManager),*rhs);
+                        llvm::outs()<<"\nExpr: "<<new_replacement<<"\n";
+                        StringRef currFileName =Result.SourceManager->getFilename(binOp->getExprLoc());
+                        std::string newFile =getNextFile(currFileName);
+                        Replacement Rep(*(Result.SourceManager), binOp, new_replacement);
+                        Replacement Rep1(newFile, Rep.getOffset (), Rep.getLength(),new_replacement);
+                        Replace->insert(Rep1);
+                    }*/
+
+
+              
+
+                
+               if(binOp->isComparisonOp ()){
+                   llvm::outs()<<"Comparison Opcode: "<<operand.str()<<"\n";
+               }
               if(binOp->isMultiplicativeOp ()){
                    llvm::outs()<<"Multiplicative Opcode: "<<operand.str()<<"\n";
                    //createAndWrite2File();
               }
-              else if(binOp->isAdditiveOp ()){
+               if(binOp->isAdditiveOp ()){
                    llvm::outs()<<"Additive Opcode: "<<operand.str()<<"\n";
               }
-              else if(binOp->isShiftOp ()){
+               if(binOp->isShiftOp ()){
                    llvm::outs()<<"Shift Opcode: "<<operand.str()<<"\n";
               }
-              else if(binOp->isBitwiseOp ()){
+               if(binOp->isBitwiseOp ()){
                    llvm::outs()<<"Bitwise Opcode: "<<operand.str()<<"\n";
               }
-              else if(binOp->isRelationalOp ()){
+               if(binOp->isRelationalOp ()){
                    llvm::outs()<<"Relational Opcode: "<<operand.str()<<"\n";
-                   //clang::BinaryOperator::Opcode opcod =  clang::BO_Add;
-                   //clang::BinaryOperator::Opcode* op = const_cast<clang::BinaryOperator::Opcode*>(&opcod);                   
-                   //binOp->setOpcode (op);
-                    Expr * lhs =binOp->getLHS () ;
-                    Expr * rhs =binOp->getRHS () ;
-                     std::string temp1;
-                temp1 = getText(*(Result.SourceManager),*lhs)+"=="+getText(*(Result.SourceManager),*rhs);
-                llvm::outs()<<"\nExpr: "<<temp1<<"\n";
-                StringRef currFileName =Result.SourceManager->getFilename(binOp->getExprLoc());
-                std::string newFile =getNextFile(currFileName);
-                   //File_Path
-                 Replacement Rep(*(Result.SourceManager), binOp, temp1);
-                 Replacement Rep1(newFile, Rep.getOffset (), Rep.getLength(),temp1);
-                  Replace->insert(Rep1);
+                  
               }
-              else if(binOp->isEqualityOp ()){
+               if(binOp->isEqualityOp ()){
                    llvm::outs()<<"Equality Opcode: "<<operand.str()<<"\n";
               }
-              else if(binOp->isComparisonOp ()){
-                   llvm::outs()<<"Comparison Opcode: "<<operand.str()<<"\n";
-              }
-              else if(binOp->isLogicalOp ()){
+              
+               if(binOp->isLogicalOp ()){
                    llvm::outs()<<"Logical Opcode: "<<operand.str()<<"\n";
               }
-              else if(binOp->isAssignmentOp ()){
+               if(binOp->isAssignmentOp ()){
                    llvm::outs()<<"Assignment Opcode: "<<operand.str()<<"\n";
               }
-              else if(binOp->isCompoundAssignmentOp ()){
+               if(binOp->isCompoundAssignmentOp ()){
                    llvm::outs()<<"CompoundAssignment Opcode: "<<operand.str()<<"\n";
               }
-              else if(binOp->isShiftAssignOp ()){
+               if(binOp->isShiftAssignOp ()){
                    llvm::outs()<<"ShiftAssign Opcode: "<<operand.str()<<"\n";
               }
+
+           
     }
   }
   
@@ -221,7 +288,6 @@ public:
     if (const UnaryOperator *unOp = Result.Nodes.getNodeAs<clang::UnaryOperator>("unaryOperator")) {
         if((Result.SourceManager->isInMainFile(unOp->getExprLoc())==true) &&
                   (Result.SourceManager->isInSystemHeader(unOp->getExprLoc())==0)){
-            //  const Stmt *Then = IfS->getThen();
             std::string temp;
             temp = getText(*(Result.SourceManager),*unOp);
             llvm::outs()<<"\nUnaryOperator\n"<<temp<<"\n";
