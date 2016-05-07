@@ -80,9 +80,9 @@ static std::string getText(const SourceManager &SourceManager, const T &Node) {
   return std::string(Text, End.second - Start.second);
 }
 
-static std::string getNextFile(StringRef currFileName){
+static std::string getNextFile(StringRef currFileName, std::string newFileExtension){
       std::string newFile = currFileName.str();
-      std::string ext = std::to_string(no_of_operations++);
+      std::string ext =  newFileExtension+"GlobalID"+std::to_string(no_of_operations++);
       size_t pos = newFile.find(".cpp");
       newFile.insert(pos,  ext);
       std::ifstream  src(pathList[0], std::ios::binary);
@@ -97,6 +97,7 @@ static std::vector<clang::BinaryOperator::Opcode> viableBinMutantOpcodes(clang::
 
     std::vector<clang::BinaryOperator::Opcode> OpCode;
     StringRef Operat_str = clang::BinaryOperator::getOpcodeStr(Operator);
+ 
     if(clang::BinaryOperator::isComparisonOp(Operator)){
         if(Operat_str.equals(clang::BinaryOperator::getOpcodeStr(clang::BO_LT)) != true)
             OpCode.push_back(clang::BO_LT);
@@ -127,51 +128,16 @@ static std::vector<clang::BinaryOperator::Opcode> viableBinMutantOpcodes(clang::
        
     }
 
-     else if(clang::BinaryOperator::isShiftAssignOp (Operator)){
+     if(clang::BinaryOperator::isShiftOp (Operator)){
         if(Operat_str.equals(clang::BinaryOperator::getOpcodeStr(clang::BO_Shl)) != true)
-            OpCode.push_back(clang::BO_Mul);
+            OpCode.push_back(clang::BO_Shl);
         if(Operat_str.equals(clang::BinaryOperator::getOpcodeStr(clang::BO_Shr)) != true)
-            OpCode.push_back(clang::BO_Div);
+            OpCode.push_back(clang::BO_Shr);
       
     }
 
     return OpCode;
-/*
 
-      BO_PtrMemD 	
-      BO_PtrMemI 	
-BO_Mul 	
-BO_Div 	
-BO_Rem 	
-BO_Add 	
-BO_Sub 	
-BO_Shl 	
-BO_Shr 	
-BO_LT 	
-BO_GT 	
-BO_LE 	
-BO_GE 	
-BO_EQ 	
-BO_NE 	
-BO_And 	
-BO_Xor 	
-BO_Or 	
-BO_LAnd 	
-BO_LOr 	
-BO_Assign 	
-BO_MulAssign 	
-BO_DivAssign 	
-BO_RemAssign 	
-BO_AddAssign 	
-BO_SubAssign 	
-BO_ShlAssign 	
-BO_ShrAssign 	
-BO_AndAssign 	
-BO_XorAssign 	
-BO_OrAssign 	
-BO_Comma 
-
-      return newFile;*/
   }
 
 
@@ -203,41 +169,30 @@ public:
               Expr * lhs =binOp->getLHS () ;
               Expr * rhs =binOp->getRHS () ;
               std::string new_replacement;
+              std::string newFileExtension= "_Opcode"+operand.str() +"Line"+std::to_string(Result.SourceManager->getSpellingLineNumber(binOp->getExprLoc()))
+                  +"Column"+std::to_string(Result.SourceManager->getSpellingColumnNumber (binOp->getExprLoc()));
               for(std::vector<clang::BinaryOperator::Opcode>::iterator op_it = mutant_Ops.begin();op_it != mutant_Ops.end(); ++op_it){
                     new_replacement = getText(*(Result.SourceManager),*lhs)+" "+clang::BinaryOperator::getOpcodeStr(*op_it).str()
-                        +" " +new_replacement + new_replacement +getText(*(Result.SourceManager),*rhs);
+                        +" " +getText(*(Result.SourceManager),*rhs);
                     StringRef currFileName =Result.SourceManager->getFilename(binOp->getExprLoc());
-                    std::string newFile =getNextFile(currFileName);
+                    std::string newFile =getNextFile(currFileName,newFileExtension);
                     Replacement Rep(*(Result.SourceManager), binOp, new_replacement);
                     Replacement Rep1(newFile, Rep.getOffset (), Rep.getLength(),new_replacement);
                     Replace->insert(Rep1);
+                    new_replacement.erase();
+                    
               }
 
               
-              /*      Expr * lhs =binOp->getLHS () ;
-                    Expr * rhs =binOp->getRHS () ;
-                    std::string new_replacement;
-
-                    for(std::vector<clang::BinaryOperator::Opcode>::iterator op_it = mutant_Ops.begin();op_it != mutant_Ops.end(); ++op_it);{
-                        new_replacement = getText(*(Result.SourceManager),*lhs)+clang::BinaryOperator::getOpcodeStr(op_it)+getText(*(Result.SourceManager),*rhs);
-                        llvm::outs()<<"\nExpr: "<<new_replacement<<"\n";
-                        StringRef currFileName =Result.SourceManager->getFilename(binOp->getExprLoc());
-                        std::string newFile =getNextFile(currFileName);
-                        Replacement Rep(*(Result.SourceManager), binOp, new_replacement);
-                        Replacement Rep1(newFile, Rep.getOffset (), Rep.getLength(),new_replacement);
-                        Replace->insert(Rep1);
-                    }*/
-
-
-              
+            
 
                 
-               if(binOp->isComparisonOp ()){
+              if(binOp->isComparisonOp ()){
                    llvm::outs()<<"Comparison Opcode: "<<operand.str()<<"\n";
                }
               if(binOp->isMultiplicativeOp ()){
                    llvm::outs()<<"Multiplicative Opcode: "<<operand.str()<<"\n";
-                   //createAndWrite2File();
+                   
               }
                if(binOp->isAdditiveOp ()){
                    llvm::outs()<<"Additive Opcode: "<<operand.str()<<"\n";
@@ -291,20 +246,53 @@ public:
             std::string temp;
             temp = getText(*(Result.SourceManager),*unOp);
             llvm::outs()<<"\nUnaryOperator\n"<<temp<<"\n";
-            StringRef 	operand = unOp->getOpcodeStr(unOp->getOpcode () );
             //llvm::outs()<<"Opcode: "<<operand.str()<<"\n";
             clang::UnaryOperator::Opcode UnOpCode = unOp->getOpcode ();
+
+            std::vector<clang::UnaryOperator::Opcode> mutant_Ops;
+            Expr * subExpr = unOp->getSubExpr ();
+            StringRef Operat_str = clang::UnaryOperator::getOpcodeStr(UnOpCode);
+
+            if((Operat_str.equals(clang::UnaryOperator::getOpcodeStr(clang::UO_PostInc)) != true) || (clang::UnaryOperator::isPrefix(UnOpCode)))
+                mutant_Ops.push_back(clang::UO_PostInc);
+            if((Operat_str.equals(clang::UnaryOperator::getOpcodeStr(clang::UO_PostDec)) != true) || (clang::UnaryOperator::isPrefix(UnOpCode)))
+                mutant_Ops.push_back(clang::UO_PostDec);
+            if((Operat_str.equals(clang::UnaryOperator::getOpcodeStr(clang::UO_PreInc)) != true) ||  (clang::UnaryOperator::isPostfix(UnOpCode)))
+                mutant_Ops.push_back(clang::UO_PreInc);
+            if((Operat_str.equals(clang::UnaryOperator::getOpcodeStr(clang::UO_PreDec)) != true)  ||  (clang::UnaryOperator::isPostfix(UnOpCode)))
+                mutant_Ops.push_back(clang::UO_PreDec);
+
+              std::string new_replacement;
+              std::string newFileExtension= "_Opcode"+ Operat_str.str() +"Line"+std::to_string(Result.SourceManager->getSpellingLineNumber(unOp->getExprLoc()))
+                  +"Column"+std::to_string(Result.SourceManager->getSpellingColumnNumber (unOp->getExprLoc()));
+              for(std::vector<clang::UnaryOperator::Opcode>::iterator op_it = mutant_Ops.begin();op_it != mutant_Ops.end(); ++op_it){
+                  if(clang::UnaryOperator::isPostfix(*op_it)){
+                      new_replacement = clang::UnaryOperator::getOpcodeStr(*op_it).str()
+                        +getText(*(Result.SourceManager),*subExpr);
+                    
+                  }
+                  else{
+                      new_replacement = getText(*(Result.SourceManager),*subExpr) + clang::UnaryOperator::getOpcodeStr(*op_it).str();
+                  }    
+                  StringRef currFileName =Result.SourceManager->getFilename(unOp->getExprLoc());
+                  std::string newFile =getNextFile(currFileName,newFileExtension);
+                  Replacement Rep(*(Result.SourceManager), unOp, new_replacement);
+                  Replacement Rep1(newFile, Rep.getOffset (), Rep.getLength(),new_replacement);
+                  Replace->insert(Rep1);
+                  new_replacement.erase();
+              }
+       
             if(unOp->isIncrementOp ()){
-                llvm::outs()<<"Increment Opcode: "<<operand.str()<<"\n";
+                llvm::outs()<<"Increment Opcode: "<<Operat_str.str()<<"\n";
             }
             else if(unOp->isDecrementOp ()){
-                llvm::outs()<<"Decrement Opcode: "<<operand.str()<<"\n";
+                llvm::outs()<<"Decrement Opcode: "<<Operat_str.str()<<"\n";
             }
             else if(unOp->isIncrementDecrementOp ()){
-                llvm::outs()<<"IncrementDecrement Opcode: "<<operand.str()<<"\n";
+                llvm::outs()<<"IncrementDecrement Opcode: "<<Operat_str.str()<<"\n";
             }
             else if(unOp->isArithmeticOp ()){
-                llvm::outs()<<"Arithmetic Opcode: "<<operand.str()<<"\n";
+                llvm::outs()<<"Arithmetic Opcode: "<<Operat_str.str()<<"\n";
             }
     }
   }
@@ -316,47 +304,6 @@ private:
 
 
 
-void createAndWrite2File()
-{
-    std::string newFile = pathList[0];
-    /*newFile=newFile+ std::to_string(no_of_operations);
-    newFile.replace(newFile.size ()-5, newFile.size ()-4, "1.cpp");*/
-
-    std::string ext = std::to_string(no_of_operations);
-    size_t pos = newFile.find(".cpp");
-              //llvm::outs()<<"newFile =: "<<newFile<<"\n";
-              //llvm::outs()<<"FileName =: "<<FileName.str()<<"\n";
-              //llvm::outs()<<"Position =: "<<pos<<"\n";
-     newFile.insert(pos,  ext);
-    
-    /*std::ofstream outfile (newFile);
-    outfile.close();*/
-
-    /*std::fstream finFile(pathList[0], std::fstream::in|std::fstream::binary);
-    finFile << std::noskipws;
-    std::istream_iterator<std::istream> begin(finFile);
-    std::istream_iterator end;
-    std::fstream foutFile("output.txt",std::fstream::out|std::fstream::trunc|std::fstream::binary);
-    std::ostream_iterator<std::ostream> begin2(newFile);
-    std::copy(begin, end, begin2);*/
-
-    /*std::ifstream inFile(pathList[0], std::ios::binary);
-    std::ofstream outFile(newFile, std::ios::binary);
-
-    while (inFile.good())  // Though perhaps this condition is wrong
-    {
-        outFile.put(inFile.get());
-    }
-
-    inFile.close();
-    outFile.close();*/
-
-    std::ifstream  src(pathList[0], std::ios::binary);
-    std::ofstream  dst(newFile,   std::ios::binary);
-
-    dst << src.rdbuf();
-
-}
 
 int main(int argc, const char **argv) {
     CommonOptionsParser op(argc, argv, ToolingSampleCategory);

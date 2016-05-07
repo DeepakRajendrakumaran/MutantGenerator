@@ -38,5 +38,10 @@ int main()
   cout << "Sorted Array : " << endl; 
   for (int i = 0; i < n; ++i)
     cout << input_ar[i] << " ";
+  int i=7;
+  i++;
+  ++i;
+  i--;
+  --i;
   return 0;
 }
