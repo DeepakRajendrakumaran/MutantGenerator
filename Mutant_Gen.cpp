@@ -83,6 +83,9 @@ static std::string getText(const SourceManager &SourceManager, const T &Node) {
 static std::string getNextFile(StringRef currFileName, std::string newFileExtension){
       std::string newFile = currFileName.str();
       std::string ext =  newFileExtension+"GlobalID"+std::to_string(no_of_operations++);
+      /* size_t pos_dir = newFile.find(pathList[0]);
+       std::string dir="mutants"+newFile[pos_dir-1];
+       newFile.insert(pos_dir,  dir);*/
       size_t pos = newFile.find(".cpp");
       newFile.insert(pos,  ext);
       std::ifstream  src(pathList[0], std::ios::binary);
@@ -156,8 +159,10 @@ public:
           if((Result.SourceManager->isInMainFile(binOp->getExprLoc())==true) &&
                   (Result.SourceManager->isInSystemHeader(binOp->getExprLoc())==0)){
              
-                
-
+               StringRef currFileName =Result.SourceManager->getFilename(binOp->getExprLoc()); 
+                llvm::outs()<<"\nCurrFile: "<<currFileName.str()<<"\n";
+                if(currFileName.find(pathList[0])==std::string::npos)
+                    return ;
               std::string temp;
               temp = getText(*(Result.SourceManager),*binOp);
               llvm::outs()<<"\nBinaryOperator: "<<temp<<"\n";
@@ -169,12 +174,11 @@ public:
               Expr * lhs =binOp->getLHS () ;
               Expr * rhs =binOp->getRHS () ;
               std::string new_replacement;
-              std::string newFileExtension= "_Opcode"+operand.str() +"Line"+std::to_string(Result.SourceManager->getSpellingLineNumber(binOp->getExprLoc()))
+              std::string newFileExtension= "_Line"+std::to_string(Result.SourceManager->getSpellingLineNumber(binOp->getExprLoc()))
                   +"Column"+std::to_string(Result.SourceManager->getSpellingColumnNumber (binOp->getExprLoc()));
               for(std::vector<clang::BinaryOperator::Opcode>::iterator op_it = mutant_Ops.begin();op_it != mutant_Ops.end(); ++op_it){
                     new_replacement = getText(*(Result.SourceManager),*lhs)+" "+clang::BinaryOperator::getOpcodeStr(*op_it).str()
                         +" " +getText(*(Result.SourceManager),*rhs);
-                    StringRef currFileName =Result.SourceManager->getFilename(binOp->getExprLoc());
                     std::string newFile =getNextFile(currFileName,newFileExtension);
                     Replacement Rep(*(Result.SourceManager), binOp, new_replacement);
                     Replacement Rep1(newFile, Rep.getOffset (), Rep.getLength(),new_replacement);
@@ -243,6 +247,12 @@ public:
     if (const UnaryOperator *unOp = Result.Nodes.getNodeAs<clang::UnaryOperator>("unaryOperator")) {
         if((Result.SourceManager->isInMainFile(unOp->getExprLoc())==true) &&
                   (Result.SourceManager->isInSystemHeader(unOp->getExprLoc())==0)){
+
+              StringRef currFileName =Result.SourceManager->getFilename(unOp->getExprLoc());
+             llvm::outs()<<"\nCurrFile: "<<currFileName.str()<<"\n";
+                if(currFileName.find(pathList[0])==std::string::npos)
+                    return ; 
+
             std::string temp;
             temp = getText(*(Result.SourceManager),*unOp);
             llvm::outs()<<"\nUnaryOperator\n"<<temp<<"\n";
@@ -252,7 +262,7 @@ public:
             std::vector<clang::UnaryOperator::Opcode> mutant_Ops;
             Expr * subExpr = unOp->getSubExpr ();
             StringRef Operat_str = clang::UnaryOperator::getOpcodeStr(UnOpCode);
-
+            if(clang::UnaryOperator::isIncrementOp(UnOpCode) || clang::UnaryOperator::isDecrementOp(UnOpCode) ){
             if((Operat_str.equals(clang::UnaryOperator::getOpcodeStr(clang::UO_PostInc)) != true) || (clang::UnaryOperator::isPrefix(UnOpCode)))
                 mutant_Ops.push_back(clang::UO_PostInc);
             if((Operat_str.equals(clang::UnaryOperator::getOpcodeStr(clang::UO_PostDec)) != true) || (clang::UnaryOperator::isPrefix(UnOpCode)))
@@ -263,7 +273,7 @@ public:
                 mutant_Ops.push_back(clang::UO_PreDec);
 
               std::string new_replacement;
-              std::string newFileExtension= "_Opcode"+ Operat_str.str() +"Line"+std::to_string(Result.SourceManager->getSpellingLineNumber(unOp->getExprLoc()))
+              std::string newFileExtension= "_Line"+std::to_string(Result.SourceManager->getSpellingLineNumber(unOp->getExprLoc()))
                   +"Column"+std::to_string(Result.SourceManager->getSpellingColumnNumber (unOp->getExprLoc()));
               for(std::vector<clang::UnaryOperator::Opcode>::iterator op_it = mutant_Ops.begin();op_it != mutant_Ops.end(); ++op_it){
                   if(clang::UnaryOperator::isPostfix(*op_it)){
@@ -274,7 +284,7 @@ public:
                   else{
                       new_replacement = getText(*(Result.SourceManager),*subExpr) + clang::UnaryOperator::getOpcodeStr(*op_it).str();
                   }    
-                  StringRef currFileName =Result.SourceManager->getFilename(unOp->getExprLoc());
+                
                   std::string newFile =getNextFile(currFileName,newFileExtension);
                   Replacement Rep(*(Result.SourceManager), unOp, new_replacement);
                   Replacement Rep1(newFile, Rep.getOffset (), Rep.getLength(),new_replacement);
@@ -293,6 +303,7 @@ public:
             }
             else if(unOp->isArithmeticOp ()){
                 llvm::outs()<<"Arithmetic Opcode: "<<Operat_str.str()<<"\n";
+            }
             }
     }
   }
